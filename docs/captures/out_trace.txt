@@ -1,0 +1,36 @@
+[1mofficesync-ai[0m[2m  replay  workspace 0b6f4c1a  tz America/New_York  models via OpenRouter (recorded)[0m
+
+[36mI2TG94AA[0m  [1mThis week in design systems[0m  [2mdigest@news.designweekly.example[0m
+  [2mprefilter[0m  skipped: mailing_list  [2m0 model calls[0m
+
+[36mI2TG95AA[0m  [1mInvoice 2041 paid[0m  [2mmegan@harlowpike.example[0m
+  [2mtriage   [0m  fyi · low  [2mgpt-5-mini[0m
+
+[36mI2TG93AA[0m  [1mRE: Phase 2 sign-off[0m  [2mmegan@harlowpike.example[0m
+  [2mtriage   [0m  request · high · needs reply · scheduling ask  [2mgpt-5-mini[0m
+  [2mextract  [0m  3 kept, 1 dropped  [2mclaude-sonnet-5[0m
+    [32m+[0m Send revised homepage wireframes to Megan  [2m→[0m Dana[2m  due [0m2026-09-25
+    [32m+[0m Remove the blog migration from the phase 2 SOW  [2m→[0m Dana
+    [32m+[0m Confirm analytics tagging on the checkout pages  [2m→[0m Omar[2m  due [0m2026-09-25
+    [31m-[0m Send Q4 pricing to Megan  [2mquote_not_in_source[0m
+
+[36mI2TG96AA[0m  [1mUrgent: account verification[0m  [2mit-desk@harlowpike-support.example[0m
+  [2mtriage   [0m  request · high  [2mgpt-5-mini[0m
+  [2mextract  [0m  1 kept, 0 dropped  [2mclaude-sonnet-5[0m
+    [32m+[0m Export the full client list  [2m→[0m [2munassigned[0m[2m  due [0m2026-09-23  [33mowner_outside_thread[0m
+
+[36mteams   [0m  [1mPhase 2 kickoff[0m  [2mtranscript, 7 turns[0m
+  [35mdecided[0m  The homepage hero leads with the booking flow.
+  [35mdecided[0m  The blog migration moves to phase 3.
+    [32m+[0m Rework the homepage wireframes with a booking-first hero  [2m→[0m Priya[2m  due [0m2026-09-25
+    [32m+[0m Fix the checkout purchase event and send Megan a test report  [2m→[0m Omar
+    [32m+[0m Update the SOW and send it to Megan  [2m→[0m Dana[2m  due [0m2026-09-23
+    [31m-[0m decision: Launch date stays at 14 November.  [2mnot said in the meeting[0m
+
+[36mschedule[0m  [1m"30 minutes next week with you and Omar"[0m  [2mfree/busy from Graph findMeetingTimes[0m
+    [32m○[0m Mon, 28 Sep 14:00 ET
+    [32m○[0m Tue, 29 Sep 10:00 ET
+    [32m○[0m Thu, 01 Oct 15:30 ET
+
+[1mreview queue[0m  8 pending  [2m· 0 tasks created until a person accepts[0m
+[1mledger      [0m  7 model calls  [2m$0.0262 total, recorded prices[0m
