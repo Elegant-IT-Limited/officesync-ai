@@ -1,75 +1,80 @@
-[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/[22m[1mmeeting.spec.ts[22m ([0m[1m[41m18.28 s[49m[22m[0m)
-  a Teams meeting transcript
-    [32m✓[39m [2mparses WebVTT voice tags into speaker turns (9460 ms)[22m
-    [32m✓[39m [2mreturns a summary, the decisions it can prove, and owned action items with dates (350 ms)[22m
-    [32m✓[39m [2mdrops a decision nobody said: the launch date never came up (57 ms)[22m
-  queueing a meeting
-    [32m✓[39m [2mputs the summary and every action item in the review queue, once (49 ms)[22m
+[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/integrations/[22m[1mopenrouter.spec.ts[22m ([0m[1m[41m9.654 s[49m[22m[0m)
+  the OpenRouter client
+    [32m✓[39m [2msends the fallback list, a strict schema and a no-retention provider policy (3245 ms)[22m
+    [32m✓[39m [2mrecords the model that actually answered when OpenRouter falls back (35 ms)[22m
+    [32m✓[39m [2mretries a 429 with backoff, then succeeds (17 ms)[22m
+    [32m✓[39m [2mgives an off-schema reply one repair attempt with the error attached (19 ms)[22m
+    [32m✓[39m [2mthrows a retryable error when the whole fallback list is down, so the queue job runs again later (18 ms)[22m
 
-[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/[22m[1mschedule.spec.ts[22m ([0m[1m[41m18.704 s[49m[22m[0m)
+[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/modules/scheduling/[22m[1mscheduling.spec.ts[22m ([0m[1m[41m9.927 s[49m[22m[0m)
   scheduling from plain language
-    [32m✓[39m [2masks Graph for free time next week and offers only slots Graph returned (9836 ms)[22m
-    [32m✓[39m [2mnarrows the window to mornings when the request says so (175 ms)[22m
-    [32m✓[39m [2masks which Sam instead of guessing, and never calls Graph (118 ms)[22m
+    [32m✓[39m [2masks Graph for free time next week and offers only slots Graph returned (3485 ms)[22m
+    [32m✓[39m [2mnarrows the window to mornings when the request says so (39 ms)[22m
+    [32m✓[39m [2masks which Sam instead of guessing, and never calls Graph (29 ms)[22m
 
-[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/[22m[1mreview.spec.ts[22m ([0m[1m[41m18.845 s[49m[22m[0m)
-  the review queue
-    [32m✓[39m [2mcreates the task only on accept, carrying the owner, date and the source sentence (9844 ms)[22m
-    [32m✓[39m [2mapplies the edits a person makes before accepting (198 ms)[22m
-    [32m✓[39m [2mis idempotent on a double click, and a dismissed suggestion cannot come back (307 ms)[22m
-    [32m✓[39m [2manother workspace cannot see or accept it (88 ms)[22m
+[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/modules/mail/[22m[1mpipeline.spec.ts[22m ([0m[1m[41m10.103 s[49m[22m[0m)
+  an email through the pipeline
+    [32m✓[39m [2mturns a client request into verified task suggestions with owners and real dates (3228 ms)[22m
+    [32m✓[39m [2mdrops a commitment the model took from the quoted history instead of this message (103 ms)[22m
+    [32m✓[39m [2mcreates nothing: every suggestion waits in the review queue (42 ms)[22m
+    [32m✓[39m [2mnever pays twice for a redelivered notification: deferred while the first run is live, a no-op after (78 ms)[22m
+    [32m✓[39m [2mfinishes a message on retry when the first attempt failed half way (64 ms)[22m
+    [32m✓[39m [2mnever calls a model for a newsletter, and stops after triage for an FYI (26 ms)[22m
+    [32m✓[39m [2mwrites one ledger row per call with the model that served it (44 ms)[22m
+  prompt injection in an email
+    [32m✓[39m [2mcannot assign work outside the thread, and the item still waits for a person (33 ms)[22m
 
-[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/[22m[1mfollowup.spec.ts[22m
+[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/modules/meetings/[22m[1mmeetings.spec.ts[22m
+  a Teams meeting transcript
+    [32m✓[39m [2mparses WebVTT voice tags into speaker turns (4 ms)[22m
+    [32m✓[39m [2mreturns a summary, the decisions it can prove, and owned action items with dates (1904 ms)[22m
+    [32m✓[39m [2mdrops a decision nobody said: the launch date never came up (30 ms)[22m
+  queueing a meeting
+    [32m✓[39m [2mputs the summary and every action item in the review queue, once (41 ms)[22m
+
+[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/modules/followups/[22m[1mfollowups.spec.ts[22m
   a thread that went quiet
-    [32m✓[39m [2mcounts working days only, so a Friday question is 2 days old on Tuesday, not 4 (5 ms)[22m
-    [32m✓[39m [2msuggests a reminder once the team has waited past the workspace limit (10 ms)[22m
-    [32m✓[39m [2mstays silent when the client has replied, or when nothing was asked (7 ms)[22m
-    [32m✓[39m [2mdoes not nag early: one working day is not enough (3 ms)[22m
+    [32m✓[39m [2mcounts working days only, so a Friday question is 2 days old on Tuesday, not 4 (11 ms)[22m
+    [32m✓[39m [2msuggests a reminder once the team has waited past the workspace limit (7 ms)[22m
+    [32m✓[39m [2mstays silent when the client has replied, or when nothing was asked (1 ms)[22m
+    [32m✓[39m [2mdoes not nag early: one working day is not enough[22m
+    [32m✓[39m [2mqueues one reminder suggestion for a quiet thread, and only one however often the check runs (1897 ms)[22m
 
-[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/[22m[1mdue-date.spec.ts[22m
-  resolving the deadline a person wrote
-    [32m✓[39m [2m"today" resolves to 2026-09-23 (7 ms)[22m
-    [32m✓[39m [2m"EOD" resolves to 2026-09-23 (1 ms)[22m
-    [32m✓[39m [2m"tomorrow" resolves to 2026-09-24 (1 ms)[22m
-    [32m✓[39m [2m"by Friday" resolves to 2026-09-25 (3 ms)[22m
-    [32m✓[39m [2m"end of week" resolves to 2026-09-25 (2 ms)[22m
-    [32m✓[39m [2m"Wednesday" resolves to 2026-09-30 (1 ms)[22m
-    [32m✓[39m [2m"Tuesday next week" resolves to 2026-09-29[22m
-    [32m✓[39m [2m"next week" resolves to 2026-09-28 (1 ms)[22m
-    [32m✓[39m [2m"end of month" resolves to 2026-09-30 (2 ms)[22m
-    [32m✓[39m [2m"in 10 days" resolves to 2026-10-03 (2 ms)[22m
-    [32m✓[39m [2m"Oct 3" resolves to 2026-10-03 (1 ms)[22m
-    [32m✓[39m [2m"5 January" resolves to 2027-01-05 (1 ms)[22m
-    [32m✓[39m [2muses the local day, so "tomorrow" at 22:30 in New York is not two days away[22m
-    [32m✓[39m [2mrefuses to guess: "next Tuesday" and impossible dates stay unresolved (3 ms)[22m
-
-[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/[22m[1mprepare.spec.ts[22m
+[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/modules/mail/[22m[1mprepare.spec.ts[22m
   preparing a message
     [32m✓[39m [2mkeeps the new reply and cuts the quoted Outlook history under it (3 ms)[22m
     [32m✓[39m [2mcollects every participant on the thread, lower-cased and unique (1 ms)[22m
     [32m✓[39m [2mskips mailing lists and automated mail before any model sees them (2 ms)[22m
 
-[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/[22m[1mopenrouter.spec.ts[22m
-  the OpenRouter client
-    [32m✓[39m [2msends the fallback list, a strict schema and a no-retention provider policy (4211 ms)[22m
-    [32m✓[39m [2mrecords the model that actually answered when OpenRouter falls back (45 ms)[22m
-    [32m✓[39m [2mretries a 429 with backoff, then succeeds (19 ms)[22m
-    [32m✓[39m [2mgives an off-schema reply one repair attempt with the error attached (19 ms)[22m
-    [32m✓[39m [2mthrows a retryable error when the whole fallback list is down, so the queue job runs again later (11 ms)[22m
+[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/core/[22m[1mdates.spec.ts[22m
+  resolving the deadline a person wrote
+    [32m✓[39m [2m"today" resolves to 2026-09-23 (3 ms)[22m
+    [32m✓[39m [2m"EOD" resolves to 2026-09-23[22m
+    [32m✓[39m [2m"tomorrow" resolves to 2026-09-24 (1 ms)[22m
+    [32m✓[39m [2m"by Friday" resolves to 2026-09-25 (1 ms)[22m
+    [32m✓[39m [2m"end of week" resolves to 2026-09-25[22m
+    [32m✓[39m [2m"Wednesday" resolves to 2026-09-30 (1 ms)[22m
+    [32m✓[39m [2m"Tuesday next week" resolves to 2026-09-29[22m
+    [32m✓[39m [2m"next week" resolves to 2026-09-28[22m
+    [32m✓[39m [2m"end of month" resolves to 2026-09-30 (1 ms)[22m
+    [32m✓[39m [2m"in 10 days" resolves to 2026-10-03 (1 ms)[22m
+    [32m✓[39m [2m"Oct 3" resolves to 2026-10-03 (1 ms)[22m
+    [32m✓[39m [2m"5 January" resolves to 2027-01-05[22m
+    [32m✓[39m [2muses the local day, so "tomorrow" at 22:30 in New York is not two days away (1 ms)[22m
+    [32m✓[39m [2mrefuses to guess: "next Tuesday" and impossible dates stay unresolved[22m
 
-[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/[22m[1mpipeline.spec.ts[22m ([0m[1m[41m5.396 s[49m[22m[0m)
-  an email through the pipeline
-    [32m✓[39m [2mturns a client request into verified task suggestions with owners and real dates (4269 ms)[22m
-    [32m✓[39m [2mdrops a commitment the model took from the quoted history instead of this message (45 ms)[22m
-    [32m✓[39m [2mcreates nothing: every suggestion waits in the review queue (44 ms)[22m
-    [32m✓[39m [2mtreats a redelivered Graph notification as a no-op, with no second model call (32 ms)[22m
-    [32m✓[39m [2mnever calls a model for a newsletter, and stops after triage for an FYI (15 ms)[22m
-    [32m✓[39m [2mwrites one ledger row per call with the model that served it (25 ms)[22m
-  prompt injection in an email
-    [32m✓[39m [2mcannot assign work outside the thread, and the item still waits for a person (16 ms)[22m
+[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/modules/review/[22m[1mreview.spec.ts[22m
+  the review queue
+    [32m✓[39m [2mcreates the task only on accept, carrying the owner, date and the source sentence (1985 ms)[22m
+    [32m✓[39m [2mapplies the edits a person makes before accepting (53 ms)[22m
+    [32m✓[39m [2mis idempotent on a double click, and a dismissed suggestion cannot come back (65 ms)[22m
+    [32m✓[39m [2manother workspace cannot see or accept it (49 ms)[22m
+    [32m✓[39m [2mrefuses to accept a suggestion that is not a task instead of creating a half-empty one (34 ms)[22m
+  the review routes
+    [32m✓[39m [2mtake the tenant and user from the signed session, and reject anything else (156 ms)[22m
 
 [1mTest Suites: [22m[1m[32m8 passed[39m[22m, 8 total
-[1mTests:       [22m[1m[32m44 passed[39m[22m, 44 total
+[1mTests:       [22m[1m[32m48 passed[39m[22m, 48 total
 [1mSnapshots:   [22m0 total
-[1mTime:[22m        [1m[33m24.798 s[39m[22m
+[1mTime:[22m        13.178 s, estimated 15 s
 [2mRan all test suites[22m[2m.[22m

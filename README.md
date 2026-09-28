@@ -2,53 +2,67 @@
 
 The AI pipeline behind OfficeSyncPro: Microsoft Graph mail and Teams transcripts turned into task suggestions, meeting summaries, follow-up reminders and meeting slots, every one of them waiting in a review queue until a person accepts it. This is the reference build for the case study at [eleganttechbd.com/works/officesyncpro-ai-microsoft-365-automation](https://eleganttechbd.com/works/officesyncpro-ai-microsoft-365-automation). Every code block and terminal capture on that page is generated from this repository.
 
-Node 22, TypeScript strict, zod 4 contracts, Drizzle ORM on PostgreSQL, Jest. Models through OpenRouter with a fallback list per stage.
+Node 22, TypeScript strict, NestJS 11, zod 4 contracts, Drizzle ORM on PostgreSQL, BullMQ for the Graph notification queue, Jest. Models through OpenRouter with a fallback list per stage.
 
 ## Layout
 
+A modular monolith. Each module owns its tables and exposes a service; other modules call that service and never import its repository or table. The rule is checked in CI by dependency-cruiser (`.dependency-cruiser.cjs`).
+
 ```
-sql/0001_ai_pipeline.sql   ai_items (claims), ai_suggestions (the review queue), ai_calls (the ledger)
-src/ai/prefilter.ts        mail no model needs to read, decided from headers
-src/ai/prepare.ts          the new part of a reply only: no quoted history, no signature
-src/ai/openrouter.ts       one structured call: fallback list, strict JSON schema, no-retention providers, ledger
-src/ai/triage.ts           kind, priority, needs reply, scheduling ask
-src/ai/extract.ts          commitments, and the verifier that decides which survive
-src/ai/due-date.ts         "by Friday" to a date, in the workspace time zone, never by a model
-src/ai/meeting.ts          Teams transcript (WebVTT) to summary, decisions and action items
-src/ai/followup.ts         threads that went quiet, counted in working days
-src/ai/schedule.ts         plain-language request to Graph findMeetingTimes slots
-src/ai/review.ts           the only path from a suggestion to a task
-src/ai/pipeline.ts         one Graph change notification, end to end
-scripts/trace.ts           the demo inbox through every stage
-test/                      8 suites, 44 tests, PostgreSQL 17 in-process, no network
-docs/decisions.md          why it is built this way
-docs/captures/             terminal output the case study page is generated from
+migrations/<module>/        SQL migrations, one folder per owning module, applied in numeric order
+src/
+├── main.ts                 composition root: reads the environment, binds the real clients, starts HTTP and workers
+├── app.module.ts           registers the feature modules
+├── core/                   config, tenant context, session guard, domain errors, shared date and text rules
+├── db/                     the Drizzle client, the table barrel, the migration runner
+├── integrations/
+│   ├── openrouter/         one structured call: fallback list, strict schema, retries, schema repair
+│   ├── microsoft-graph/    Graph message types and findMeetingTimes
+│   └── officesyncpro/      the product's internal API: workspace members, task creation
+├── workers/                the BullMQ processor for Graph change notifications
+└── modules/
+    ├── ai/                 the single entry point for model calls: routes, injection guard, ledger
+    ├── mail/               prefilter, prepare, triage, and the email pipeline
+    ├── extraction/         commitments, and the verifier that decides which survive
+    ├── meetings/           Teams transcript (WebVTT) to summary, decisions and action items
+    ├── followups/          threads that went quiet, counted in working days
+    ├── scheduling/         plain-language request to Graph findMeetingTimes slots
+    └── review/             the queue every lane proposes into, its HTTP routes, and the only path from a suggestion to a task
+test/                       mirrors src: core/, integrations/, modules/<module>/, and support/ for fixtures and recorded replies
+scripts/                    trace (the demo inbox through every stage) and migrate
+docs/decisions.md           why it is built this way
+docs/captures/              terminal output the case study page is generated from
 ```
+
+Inside a module the files follow one naming scheme: `*.module.ts`, `*.service.ts` (the only thing other modules import), `*.repository.ts` (database access, no rules), `*.table.ts` (Drizzle table, mirroring its migration), `*.contract.ts` (the zod schema a model must answer in), and `*.controller.ts` / `*.dto.ts` where the module has routes.
 
 ## Run it
 
 ```bash
-npm install
-npm test          # 44 tests, PostgreSQL 17 via PGlite, no network
+npm ci
+npm test          # 48 tests across 8 suites, PostgreSQL 17 via PGlite, no network
 npm run trace     # the demo inbox through every stage, with recorded model replies
+npm run lint:deps # module boundaries
 ```
 
-No environment is needed for the tests or the trace. `.env.example` lists what a live deployment reads.
+No environment is needed for the tests or the trace. A live deployment reads `.env.example`: Postgres, Redis, an OpenRouter key and the OfficeSyncPro internal API. Run `npm run migrate` before the first start, then `npm run build && npm start`.
+
+Routes: `GET /api/internal/suggestions`, `POST /api/internal/suggestions/:id/accept`, `POST /api/internal/suggestions/:id/dismiss`, all behind a session token.
 
 ## What the tests prove
 
-- Quoted history never becomes a task, and every suggestion waits for a person (`pipeline.spec.ts`)
-- A redelivered Graph notification costs no model call
-- Newsletters and automated mail never reach a model (`prepare.spec.ts`)
+- Quoted history never becomes a task, and every suggestion waits for a person (`test/modules/mail/pipeline.spec.ts`)
+- A redelivered Graph notification costs no model call, whether it arrives during the first run or after it, and a message whose first attempt failed is finished by the retry, not dropped
+- Newsletters and automated mail never reach a model (`test/modules/mail/prepare.spec.ts`)
 - An email cannot assign work to an address outside the thread and the workspace
-- Deadlines resolve in the workspace time zone; ambiguous ones are asked, not guessed (`due-date.spec.ts`)
-- Only slots Graph returned are offered; an ambiguous name stops the flow before Graph is called (`schedule.spec.ts`)
-- A meeting decision nobody said is dropped (`meeting.spec.ts`)
-- Reminders count working days only (`followup.spec.ts`)
-- Fallbacks, retries and schema repair are recorded with the model that actually answered (`openrouter.spec.ts`)
-- Accept is idempotent and scoped to one workspace (`review.spec.ts`)
+- Deadlines resolve in the workspace time zone; ambiguous ones are asked, not guessed (`test/core/dates.spec.ts`)
+- Only slots Graph returned are offered; an ambiguous name stops the flow before Graph is called (`test/modules/scheduling/`)
+- A meeting decision nobody said is dropped (`test/modules/meetings/`)
+- Reminders count working days only, and a quiet thread is queued once however often the check runs (`test/modules/followups/`)
+- Fallbacks, retries and schema repair are recorded with the model that actually answered (`test/integrations/openrouter.spec.ts`)
+- Accept is idempotent, scoped to one workspace, and refused for suggestion types this service does not act on; the routes take tenant and user from the signed session only (`test/modules/review/`)
 
-Model replies are recorded payloads in `test/recorded.ts`, in the shape OpenRouter returns. Graph's `findMeetingTimes` is recorded too.
+Service tests compile the real Nest module graph with recorded clients bound at the edges, so they also prove the dependency wiring resolves. Model replies are recorded payloads in `test/support/recorded.ts`, in the shape OpenRouter returns. Graph's `findMeetingTimes` is recorded too.
 
 ## License
 
