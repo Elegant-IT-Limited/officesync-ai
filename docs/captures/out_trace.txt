@@ -32,5 +32,5 @@
     [32m○[0m Tue, 29 Sep 10:00 ET
     [32m○[0m Thu, 01 Oct 15:30 ET
 
-[1mreview queue[0m  8 pending  [2m· 0 tasks created until a person accepts[0m
+[1mreview queue[0m  9 pending  [2m· 0 tasks created until a person accepts[0m
 [1mledger      [0m  7 model calls  [2m$0.0262 total, recorded prices[0m
