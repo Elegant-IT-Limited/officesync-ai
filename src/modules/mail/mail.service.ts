@@ -38,16 +38,27 @@ export class MailService {
     const trace: Trace = { messageId: msg.id, outcome: 'duplicate', suggestions: [], schedulingAsk: false };
     const item = await this.repo.claim(ctx.tenantId, msg.id, msg.conversationId);
     if (!item) return trace;
+    try {
+      const result = await this.run(ctx, msg, item.id, trace);
+      // the last write of a successful run; until it happens, the item stays claimable
+      await this.repo.complete(ctx.tenantId, item.id);
+      return result;
+    } catch (err) {
+      await this.repo.release(ctx.tenantId, item.id);
+      throw err;
+    }
+  }
 
+  private async run(ctx: TenantCtx, msg: GraphMessage, itemId: string, trace: Trace): Promise<Trace> {
     const skip = prefilter(msg);
     if (skip) {
-      await this.repo.markSkipped(item.id, skip);
+      await this.repo.markSkipped(ctx.tenantId, itemId, skip);
       return { ...trace, outcome: 'skipped', skippedReason: skip };
     }
 
     const { text, participants } = prepare(msg);
     const t = await this.ai.complete(ctx, 'triage', Triage, TRIAGE_PROMPT, `Subject: ${msg.subject}\n\n${text}`);
-    await this.repo.saveTriage(ctx.tenantId, item.id, t.data);
+    await this.repo.saveTriage(ctx.tenantId, itemId, t.data);
     trace.outcome = 'triaged';
     trace.triage = { kind: t.data.kind, priority: t.data.priority, needsReply: t.data.needs_reply, model: t.model };
     trace.schedulingAsk = t.data.has_scheduling_ask;
@@ -58,7 +69,7 @@ export class MailService {
     const { kept, dropped } = verifyCommitments(e.data, text, participants, ctx, new Date(msg.sentDateTime), msg.conversationId);
     trace.extraction = { model: e.model, kept: kept.length, dropped };
     const inserted = await this.review.propose(kept.map((s) => ({
-      tenantId: ctx.tenantId, itemId: item.id, type: 'task' as const, dedupKey: s.dedupKey, evidence: s.quote, flags: s.flags,
+      tenantId: ctx.tenantId, itemId, type: 'task' as const, dedupKey: s.dedupKey, evidence: s.quote, flags: s.flags,
       payload: { title: s.title, ownerId: s.ownerId, ownerEmail: s.ownerEmail, due: s.due, dueText: s.dueText, quote: s.quote, priority: t.data.priority },
     })));
     const isNew = new Set(inserted.map((r) => r.dedupKey));

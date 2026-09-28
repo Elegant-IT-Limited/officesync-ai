@@ -2,7 +2,7 @@ import { DynamicModule, Global, Module } from '@nestjs/common';
 import { DATABASE, type DB } from '../db/client';
 import { GRAPH_CALENDAR, type GraphCalendar } from '../integrations/microsoft-graph/graph-calendar.client';
 import { TASK_WRITER, type TaskWriter } from '../integrations/officesyncpro/tasks.client';
-import { OPENROUTER_API_KEY, OPENROUTER_FETCH } from '../integrations/openrouter/openrouter.client';
+import { OPENROUTER_API_KEY, OPENROUTER_FETCH, OPENROUTER_SLEEP } from '../integrations/openrouter/openrouter.client';
 import { ENV, type Env } from './config';
 import { TENANT_DIRECTORY, type TenantDirectory } from './tenancy';
 
@@ -16,6 +16,8 @@ export interface CoreOptions {
   db: DB;
   openrouterFetch: typeof globalThis.fetch;
   openrouterApiKey: string;
+  /** Backoff between retries. Tests pass a no-op so a retry costs no wall-clock time. */
+  openrouterSleep?: (ms: number) => Promise<void>;
   taskWriter: TaskWriter;
   graphCalendar: GraphCalendar;
   tenantDirectory: TenantDirectory;
@@ -30,6 +32,7 @@ export class CoreModule {
       { provide: DATABASE, useValue: o.db },
       { provide: OPENROUTER_FETCH, useValue: o.openrouterFetch },
       { provide: OPENROUTER_API_KEY, useValue: o.openrouterApiKey },
+      { provide: OPENROUTER_SLEEP, useValue: o.openrouterSleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms))) },
       { provide: TASK_WRITER, useValue: o.taskWriter },
       { provide: GRAPH_CALENDAR, useValue: o.graphCalendar },
       { provide: TENANT_DIRECTORY, useValue: o.tenantDirectory },

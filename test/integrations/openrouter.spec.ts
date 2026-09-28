@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { openLocalDb, type DB } from '../../src/db/client';
+import { type DB } from '../../src/db/client';
+import { openTestDb } from '../support/db';
 import { RetryableError } from '../../src/core/errors';
 import { OpenRouterClient } from '../../src/integrations/openrouter/openrouter.client';
 import { AiRepository } from '../../src/modules/ai/ai.repository';
@@ -13,7 +14,7 @@ const ok = { kind: 'fyi', priority: 'low', needs_reply: false, has_scheduling_as
 const usage = { prompt_tokens: 400, completion_tokens: 40, cost: 0.0002 };
 const noSleep = async () => {};
 let db: DB;
-beforeEach(async () => { db = await openLocalDb(); });
+beforeEach(async () => { db = await openTestDb(); });
 
 // The real client and the real ai service, with only fetch replaced.
 const ai = (fetch: typeof globalThis.fetch) => new AiService(new OpenRouterClient(fetch, 'sk-or-test', noSleep), new AiRepository(db));

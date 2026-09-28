@@ -14,6 +14,7 @@ async function bootstrap() {
   // Graph tokens are issued by OfficeSyncPro, which already holds each tenant's consent.
   const graphToken = async (organizer: string) => {
     const res = await fetch(`${env.GRAPH_TOKEN_URL}?user=${encodeURIComponent(organizer)}`, { headers: { authorization: `Bearer ${env.OFFICESYNCPRO_API_TOKEN}` } });
+    if (!res.ok) throw new Error(`graph token: HTTP ${res.status}`);
     return ((await res.json()) as { accessToken: string }).accessToken;
   };
   const app = await NestFactory.create(AppModule.forRoot({
@@ -29,4 +30,8 @@ async function bootstrap() {
   await app.listen(env.PORT);
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  // a bad env or an unreachable dependency: say so and exit, so the orchestrator restarts us
+  console.error(err);
+  process.exit(1);
+});

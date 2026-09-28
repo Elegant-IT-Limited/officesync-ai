@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { DATABASE, type DB } from '../../db/client';
 import { aiSuggestions } from './review.table';
 
@@ -36,18 +36,16 @@ export class ReviewRepository {
       .where(eq(aiSuggestions.id, id));
   }
 
-  /** Only a pending suggestion can be dismissed; returns false when nothing matched. */
-  async dismissPending(tenantId: string, id: string, userId: string): Promise<boolean> {
-    const rows = await this.db.update(aiSuggestions)
+  async markDismissed(tx: Tx, id: string, userId: string): Promise<void> {
+    await tx.update(aiSuggestions)
       .set({ status: 'dismissed', decidedBy: userId, decidedAt: new Date() })
-      .where(and(eq(aiSuggestions.id, id), eq(aiSuggestions.tenantId, tenantId), eq(aiSuggestions.status, 'pending')))
-      .returning({ id: aiSuggestions.id });
-    return rows.length > 0;
+      .where(eq(aiSuggestions.id, id));
   }
 
+  /** Newest first, the order the queue index is built for. */
   async pending(tenantId: string, limit: number): Promise<Suggestion[]> {
     return this.db.select().from(aiSuggestions)
       .where(and(eq(aiSuggestions.tenantId, tenantId), eq(aiSuggestions.status, 'pending')))
-      .orderBy(aiSuggestions.createdAt).limit(limit);
+      .orderBy(desc(aiSuggestions.createdAt)).limit(limit);
   }
 }

@@ -11,5 +11,6 @@ export const aiItems = pgTable('ai_items', {
   priority: text('priority'),
   needsReply: boolean('needs_reply'),
   skippedReason: text('skipped_reason'),
-  processedAt: timestamp('processed_at', { withTimezone: true }).notNull().defaultNow(),
+  claimedAt: timestamp('claimed_at', { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
 }, (t) => [unique().on(t.tenantId, t.source, t.sourceId)]);

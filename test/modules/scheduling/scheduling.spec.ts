@@ -1,4 +1,5 @@
 import type { GraphCalendar } from '../../../src/integrations/microsoft-graph/graph-calendar.client';
+import { aiSuggestions } from '../../../src/modules/review/review.table';
 import { SchedulingService } from '../../../src/modules/scheduling/scheduling.service';
 import { testApp } from '../../support/app';
 import { ctx, DANA, OMAR, PRIYA } from '../../support/fixtures';
@@ -8,13 +9,14 @@ async function scheduling() {
   const requests: any[] = [];
   const graph: GraphCalendar = { async findMeetingTimes(_organizer, body) { requests.push(body); return GRAPH_SUGGESTIONS; } };
   const app = await testApp({ fetch: fakeOpenRouter().fetch, graph });
-  return { service: app.get(SchedulingService), requests };
+  return { service: app.get(SchedulingService), requests, db: app.db };
 }
 
 describe('scheduling from plain language', () => {
   it('asks Graph for free time next week and offers only slots Graph returned', async () => {
-    const { service, requests } = await scheduling();
+    const { service, requests, db } = await scheduling();
     const r = await service.proposeSlots(ctx(), 'Also, can we find 30 minutes next week with you and Omar to review the timeline?', DANA);
+    expect((await db.select().from(aiSuggestions)).map((s) => s.type)).toEqual(['slots']); // an offer in the queue, not an invite
     expect(r.status).toBe('slots');
     if (r.status !== 'slots') return;
     expect(r.attendees).toEqual([OMAR]);

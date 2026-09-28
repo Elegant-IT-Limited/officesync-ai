@@ -1,5 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { localDate } from '../../core/dates';
+import type { TenantCtx } from '../../core/tenancy';
+import { ReviewService } from '../review/review.service';
 
 export interface ThreadMessage { id: string; from: string; sentAt: Date; needsReply: boolean }
 
@@ -31,8 +34,22 @@ export function quietThread(
 
 @Injectable()
 export class FollowupsService {
-  /** Called by the follow-up check for each tracked thread; a non-null result becomes a reminder suggestion. */
-  check(messages: ThreadMessage[], teamEmails: string[], now: Date, timeZone: string, afterWorkingDays = 2) {
-    return quietThread(messages, teamEmails, now, timeZone, afterWorkingDays);
+  constructor(@Inject(ReviewService) private readonly review: ReviewService) {}
+
+  /**
+   * Called by the follow-up check for each tracked thread. A quiet thread becomes one
+   * reminder suggestion in the review queue, keyed on the message that is waiting, so
+   * running the check again tomorrow does not queue a second reminder for it.
+   */
+  async check(ctx: TenantCtx, conversationId: string, messages: ThreadMessage[], teamEmails: string[], afterWorkingDays = 2) {
+    const quiet = quietThread(messages, teamEmails, ctx.now, ctx.timeZone, afterWorkingDays);
+    if (!quiet) return null;
+    const last = [...messages].sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime())[0]!;
+    const queued = await this.review.propose([{
+      tenantId: ctx.tenantId, type: 'reminder', evidence: null, flags: [],
+      dedupKey: createHash('sha256').update(`${ctx.tenantId}|reminder|${conversationId}|${last.id}`).digest('hex'),
+      payload: { conversationId, messageId: last.id, waitingOn: quiet.waitingOn, since: quiet.since.toISOString(), workingDays: quiet.days },
+    }]);
+    return { ...quiet, queued: queued.length === 1 };
   }
 }

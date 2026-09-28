@@ -3,10 +3,17 @@ import { localDate } from '../../core/dates';
 import type { Member, TenantCtx } from '../../core/tenancy';
 import { GRAPH_CALENDAR, type GraphCalendar } from '../../integrations/microsoft-graph/graph-calendar.client';
 import type { GraphSlot } from '../../integrations/microsoft-graph/graph.types';
+import { createHash } from 'node:crypto';
+import { normalise } from '../../core/text';
 import { AiService } from '../ai/ai.service';
+import { ReviewService } from '../review/review.service';
 import { SCHEDULING_PROMPT, SchedulingAsk } from './scheduling.contract';
 
-/** Graph's findMeetingTimes takes Windows zone names in its request body. */
+/**
+ * Graph's findMeetingTimes takes Windows zone names in its request body. A workspace
+ * in a zone missing here gets a clear refusal, never a silent fallback to UTC that
+ * would offer 4 a.m. slots. Add the zone (CLDR windowsZones) to support it.
+ */
 const WINDOWS_ZONE: Record<string, string> = {
   'America/New_York': 'Eastern Standard Time', 'America/Chicago': 'Central Standard Time',
   'America/Denver': 'Mountain Standard Time', 'America/Los_Angeles': 'Pacific Standard Time', 'Europe/London': 'GMT Standard Time',
@@ -49,7 +56,11 @@ export function windowDays(text: string | null, now: Date, timeZone: string): st
 
 @Injectable()
 export class SchedulingService {
-  constructor(@Inject(AiService) private readonly ai: AiService, @Inject(GRAPH_CALENDAR) private readonly graph: GraphCalendar) {}
+  constructor(
+    @Inject(AiService) private readonly ai: AiService,
+    @Inject(ReviewService) private readonly review: ReviewService,
+    @Inject(GRAPH_CALENDAR) private readonly graph: GraphCalendar,
+  ) {}
 
   /**
    * The model only reads the request. Who is free, and when, comes from Graph. A slot
@@ -70,7 +81,8 @@ export class SchedulingService {
       else if (!['you', 'me'].includes(written.trim().toLowerCase())) return { status: 'clarify', name: written, candidates: [] };
     }
 
-    const tz = WINDOWS_ZONE[ctx.timeZone] ?? 'UTC';
+    const tz = WINDOWS_ZONE[ctx.timeZone];
+    if (!tz) return { status: 'none', reason: 'time_zone_not_mapped' };
     const [from, to] = ask.part_of_day === 'morning' ? ['09:00', '12:00'] : ask.part_of_day === 'afternoon' ? ['13:00', '17:00'] : ['09:00', '17:00'];
     const res = await this.graph.findMeetingTimes(organizer.email, {
       attendees: attendees.map((a) => ({ type: 'required', emailAddress: { address: a.email, name: a.name } })),
@@ -95,6 +107,12 @@ export class SchedulingService {
       .map((s) => s.meetingTimeSlot)
       .sort((a, b) => a.start.dateTime.localeCompare(b.start.dateTime));
     if (!slots.length) return { status: 'none', reason: res.emptySuggestionsReason || 'no_common_free_time' };
+    // the offer waits in the review queue like every other suggestion; no invite is sent from here
+    await this.review.propose([{
+      tenantId: ctx.tenantId, type: 'slots', evidence: request, flags: [],
+      dedupKey: createHash('sha256').update(`${ctx.tenantId}|slots|${organizer.id}|${normalise(request)}`).digest('hex'),
+      payload: { title: ask.title, organizerId: organizer.id, attendeeIds: attendees.map((a) => a.id), external, slots },
+    }]);
     return { status: 'slots', title: ask.title, attendees, external, slots };
   }
 }

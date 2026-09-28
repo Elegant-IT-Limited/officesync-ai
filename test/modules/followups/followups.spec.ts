@@ -1,4 +1,8 @@
-import { quietThread, workingDaysBetween } from '../../../src/modules/followups/followups.service';
+import { FollowupsService, quietThread, workingDaysBetween } from '../../../src/modules/followups/followups.service';
+import { aiSuggestions } from '../../../src/modules/review/review.table';
+import { testApp } from '../../support/app';
+import { ctx } from '../../support/fixtures';
+import { fakeOpenRouter } from '../../support/recorded';
 
 const team = ['dana@brightline.example', 'omar@brightline.example'];
 const tz = 'America/New_York';
@@ -23,5 +27,15 @@ describe('a thread that went quiet', () => {
 
   it('does not nag early: one working day is not enough', () => {
     expect(quietThread([earlier, asked], team, new Date('2026-09-21T15:00:00Z'), tz)).toBeNull();
+  });
+
+  it('queues one reminder suggestion for a quiet thread, and only one however often the check runs', async () => {
+    const app = await testApp({ fetch: fakeOpenRouter().fetch });
+    const followups = app.get(FollowupsService);
+    const w = ctx({ now: new Date('2026-09-22T15:00:00Z') });
+    expect(await followups.check(w, 'AAQkAGI2THVSAAA=', [earlier, asked], team)).toMatchObject({ days: 2, queued: true });
+    expect(await followups.check(w, 'AAQkAGI2THVSAAA=', [earlier, asked], team)).toMatchObject({ queued: false });
+    const rows = await app.db.select().from(aiSuggestions);
+    expect(rows.map((r) => [r.type, r.status])).toEqual([['reminder', 'pending']]);
   });
 });

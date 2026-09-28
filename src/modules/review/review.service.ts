@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { AlreadyDecided, NotFound } from '../../core/errors';
+import { AlreadyDecided, NotAcceptableHere, NotFound } from '../../core/errors';
 import { TASK_WRITER, type TaskWriter } from '../../integrations/officesyncpro/tasks.client';
 import { ReviewRepository, type NewSuggestion, type Suggestion } from './review.repository';
 
@@ -29,6 +29,11 @@ export class ReviewService {
   /**
    * Scoped by tenant in the query itself, idempotent on double-submit, and a
    * dismissed suggestion can never be revived by a stale tab.
+   *
+   * This service performs the accept for task suggestions. Summaries, reminders and
+   * slot offers share the queue and its shape, but their accept actions (posting a
+   * summary, sending a reminder, creating an invite) belong to the product modules
+   * that own those things, so they are refused here rather than half done.
    */
   async accept(tenantId: string, id: string, userId: string, edits: AcceptEdits = {}): Promise<{ taskId: string }> {
     return this.repo.transaction(async (tx) => {
@@ -37,6 +42,7 @@ export class ReviewService {
       // a second click while the first was in flight: hand back the same task
       if (s.status === 'accepted' && s.createdTaskId) return { taskId: s.createdTaskId };
       if (s.status !== 'pending') throw new AlreadyDecided(id);
+      if (s.type !== 'task') throw new NotAcceptableHere(id);
       const p = s.payload as { title: string; ownerId: string | null; due: string | null; quote: string };
       const task = await this.tasks.create({
         tenantId,
@@ -51,7 +57,13 @@ export class ReviewService {
     });
   }
 
+  /** Same rules as accept: not found is 404, already decided is 409, whichever way it went. */
   async dismiss(tenantId: string, id: string, userId: string): Promise<void> {
-    if (!(await this.repo.dismissPending(tenantId, id, userId))) throw new NotFound(id);
+    await this.repo.transaction(async (tx) => {
+      const s = await this.repo.lockForDecision(tx, tenantId, id);
+      if (!s) throw new NotFound(id);
+      if (s.status !== 'pending') throw new AlreadyDecided(id);
+      await this.repo.markDismissed(tx, id, userId);
+    });
   }
 }

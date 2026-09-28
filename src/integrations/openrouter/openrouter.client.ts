@@ -21,8 +21,10 @@ export interface ChatResult {
 
 export const OPENROUTER_FETCH = Symbol('OPENROUTER_FETCH');
 export const OPENROUTER_API_KEY = Symbol('OPENROUTER_API_KEY');
+export const OPENROUTER_SLEEP = Symbol('OPENROUTER_SLEEP');
 
-// 408 and 5xx are the provider's problem and worth another try; 4xx is ours.
+// Timeouts, rate limits and gateway errors are worth another try. Any other status
+// means the request itself is wrong, and repeating it would only repeat the error.
 const RETRY_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 
 /**
@@ -65,7 +67,7 @@ export class OpenRouterClient {
           }),
         });
         if (!RETRY_STATUS.has(res.status)) break;
-        await this.sleep(250 * 2 ** i); // 250, 500, 1000 ms
+        if (i < 2) await this.sleep(250 * 2 ** i); // 250 then 500 ms; no wait after the last try
       }
       // the queue retries the whole job later; retrying harder here would only
       // hold a worker while every provider on the list is down

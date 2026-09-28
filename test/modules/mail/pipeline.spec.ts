@@ -1,10 +1,12 @@
 import { eq } from 'drizzle-orm';
+import { RetryableError } from '../../../src/core/errors';
 import { aiCalls } from '../../../src/modules/ai/ai.table';
+import { MailRepository } from '../../../src/modules/mail/mail.repository';
 import { MailService } from '../../../src/modules/mail/mail.service';
 import { aiSuggestions } from '../../../src/modules/review/review.table';
 import { testApp } from '../../support/app';
 import { clientThread, ctx, DANA, injection, invoicePaid, newsletter, OMAR } from '../../support/fixtures';
-import { fakeOpenRouter } from '../../support/recorded';
+import { fakeOpenRouter, RECORDED } from '../../support/recorded';
 
 async function pipeline(or = fakeOpenRouter()) {
   const app = await testApp({ fetch: or.fetch });
@@ -38,13 +40,31 @@ describe('an email through the pipeline', () => {
     expect(rows.every((r) => r.status === 'pending' && r.createdTaskId === null)).toBe(true);
   });
 
-  it('treats a redelivered Graph notification as a no-op, with no second model call', async () => {
-    const { mail, db, or } = await pipeline();
+  it('never pays twice for a redelivered notification: deferred while the first run is live, a no-op after', async () => {
+    const { mail, db, or, get } = await pipeline();
+    // another worker holds the claim: the redelivery must wait, not run the models in parallel
+    const repo = get(MailRepository);
+    const held = await repo.claim(ctx().tenantId, clientThread.id, clientThread.conversationId);
+    await expect(mail.processEmail(ctx(), clientThread)).rejects.toBeInstanceOf(RetryableError);
+    expect(or.calls.length).toBe(0);
+    await repo.release(ctx().tenantId, held!.id); // that worker failed; the lease comes back
     await mail.processEmail(ctx(), clientThread);
     const again = await mail.processEmail(ctx(), clientThread);
     expect(again.outcome).toBe('duplicate');
     expect(or.calls.length).toBe(2); // triage + extract, from the first delivery only
     expect((await db.select().from(aiSuggestions)).length).toBe(3);
+  });
+
+  it('finishes a message on retry when the first attempt failed half way', async () => {
+    const outage = fakeOpenRouter({ ...RECORDED, 'extract:Phase 2 sign-off': [{ status: 503, model: '', content: '' }] });
+    const first = await pipeline(outage);
+    await expect(first.mail.processEmail(ctx(), clientThread)).rejects.toBeInstanceOf(RetryableError);
+    // the queue retries the job once providers are back; the claim must not turn it into a duplicate
+    const { mail } = await testApp({ fetch: fakeOpenRouter().fetch, db: first.db }).then((a) => ({ mail: a.get(MailService) }));
+    const retry = await mail.processEmail(ctx(), clientThread);
+    expect(retry.outcome).toBe('suggested');
+    expect(retry.suggestions.length).toBe(3);
+    expect((await mail.processEmail(ctx(), clientThread)).outcome).toBe('duplicate');
   });
 
   it('never calls a model for a newsletter, and stops after triage for an FYI', async () => {

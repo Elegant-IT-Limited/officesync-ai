@@ -15,6 +15,11 @@ export class AlreadyDecided extends DomainError {
   override readonly status = HttpStatus.CONFLICT;
 }
 
+// A suggestion whose accept action this service does not perform (see ReviewService.accept).
+export class NotAcceptableHere extends DomainError {
+  override readonly status = HttpStatus.UNPROCESSABLE_ENTITY;
+}
+
 /** A failure the queue should retry later (provider outage, rate limit), not a bug. */
 export class RetryableError extends Error {}
 
