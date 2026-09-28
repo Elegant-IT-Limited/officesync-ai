@@ -1,27 +1,28 @@
 // Replays the demo inbox through the pipeline and prints what each stage decided.
-// Model replies are the recorded ones from test/recorded.ts, so the run is deterministic and offline.
+// Model replies are the recorded ones from test/support/recorded.ts, so the run is deterministic and offline.
+import 'reflect-metadata';
 import { sql } from 'drizzle-orm';
-import { openDb } from '../src/ai/db';
-import { queueMeeting, summariseMeeting } from '../src/ai/meeting';
-import { processEmail } from '../src/ai/pipeline';
-import { proposeSlots } from '../src/ai/schedule';
-import { clientThread, ctx, DANA, injection, invoicePaid, kickoffVtt, newsletter, OMAR, PRIYA } from '../test/fixtures';
-import { fakeOpenRouter, GRAPH_SUGGESTIONS } from '../test/recorded';
+import { MailService } from '../src/modules/mail/mail.service';
+import { MeetingsService } from '../src/modules/meetings/meetings.service';
+import { SchedulingService } from '../src/modules/scheduling/scheduling.service';
+import { testApp } from '../test/support/app';
+import { clientThread, ctx, DANA, injection, invoicePaid, kickoffVtt, newsletter, OMAR, PRIYA } from '../test/support/fixtures';
+import { fakeOpenRouter, GRAPH_SUGGESTIONS } from '../test/support/recorded';
 
 const c = (n: number) => (s: string) => `\x1b[${n}m${s}\x1b[0m`;
 const dim = c(2), bold = c(1), green = c(32), yellow = c(33), cyan = c(36), red = c(31), mag = c(35);
 const short = (m: string) => m.replace(/^~?[a-z-]+\//, '');
 
 async function main() {
-  const db = await openDb();
   const or = fakeOpenRouter();
-  const deps = { db, fetch: or.fetch, apiKey: 'recorded' };
+  const { db, get } = await testApp({ fetch: or.fetch, graph: { findMeetingTimes: async () => GRAPH_SUGGESTIONS } });
+  const [mail, meetings, scheduling] = [get(MailService), get(MeetingsService), get(SchedulingService)];
   const w = ctx();
   const name = (email: string | null) => w.members.find((m) => m.email === email)?.name.split(' ')[0] ?? dim('unassigned');
 
   console.log(bold('officesync-ai') + dim(`  replay  workspace ${w.tenantId.slice(0, 8)}  tz ${w.timeZone}  models via OpenRouter (recorded)`) + '\n');
   for (const msg of [newsletter, invoicePaid, clientThread, injection]) {
-    const t = await processEmail(deps, w, msg);
+    const t = await mail.processEmail(w, msg);
     console.log(`${cyan(msg.id.slice(6, 14))}  ${bold(msg.subject)}  ${dim(msg.from.emailAddress.address)}`);
     if (t.outcome === 'skipped') { console.log(`  ${dim('prefilter')}  skipped: ${t.skippedReason}  ${dim('0 model calls')}\n`); continue; }
     console.log(`  ${dim('triage   ')}  ${t.triage!.kind} · ${t.triage!.priority}${t.triage!.needsReply ? ' · needs reply' : ''}${t.schedulingAsk ? ' · scheduling ask' : ''}  ${dim(short(t.triage!.model))}`);
@@ -33,15 +34,15 @@ async function main() {
     console.log('');
   }
 
-  const m = await summariseMeeting(deps, w, 'mtg-kickoff', kickoffVtt, [DANA, OMAR, PRIYA], new Date('2026-09-22T15:00:00Z'));
-  await queueMeeting(db, w, 'mtg-kickoff', m);
+  const m = await meetings.summarise(w, 'mtg-kickoff', kickoffVtt, [DANA, OMAR, PRIYA], new Date('2026-09-22T15:00:00Z'));
+  await meetings.queue(w, 'mtg-kickoff', m);
   console.log(`${cyan('teams   ')}  ${bold('Phase 2 kickoff')}  ${dim('transcript, 7 turns')}`);
   for (const d of m.decisions) console.log(`  ${mag('decided')}  ${d.text}`);
   for (const a of m.actions) console.log(`    ${green('+')} ${a.title}  ${dim('→')} ${w.members.find((x) => x.id === a.ownerId)?.name.split(' ')[0] ?? 'unassigned'}${a.due ? dim('  due ') + a.due : ''}`);
   for (const d of m.dropped) console.log(`    ${red('-')} ${d}  ${dim('not said in the meeting')}`);
   console.log('');
 
-  const s = await proposeSlots({ ...deps, graph: { findMeetingTimes: async () => GRAPH_SUGGESTIONS } }, w, 'Also, can we find 30 minutes next week with you and Omar to review the timeline?', DANA);
+  const s = await scheduling.proposeSlots(w, 'Also, can we find 30 minutes next week with you and Omar to review the timeline?', DANA);
   console.log(`${cyan('schedule')}  ${bold('"30 minutes next week with you and Omar"')}  ${dim('free/busy from Graph findMeetingTimes')}`);
   if (s.status === 'slots') for (const x of s.slots) console.log(`    ${green('○')} ${new Date(x.start.dateTime.slice(0, 19) + 'Z').toUTCString().slice(0, 22).replace(' 2026', '')} ET`);
   console.log('');
